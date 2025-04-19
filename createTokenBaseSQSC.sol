@@ -1,27 +1,64 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.29;
 
 contract createTokenBaseSQSC {
     address[] public deployedTokens;
 
-    event TokenCreated(address tokenAddress, string name, string symbol, uint256 totalSupply, uint8 decimals, address owner);
+    event TokenCreated(
+        address tokenAddress,
+        string name,
+        string symbol,
+        uint256 totalSupply,
+        uint8 decimals,
+        address owner,
+        string imageURI
+    );
 
     function createToken(
         string memory _name,
         string memory _symbol,
         uint256 _totalSupply,
         uint8 _decimals,
-        address _recipient
+        address _recipient,
+        string memory _imageURI
     ) public returns (address) {
         require(_decimals <= 18, "Max decimals is 18");
-        CustomERC20 newToken = new CustomERC20(_name, _symbol, _totalSupply, _decimals, _recipient);
+        require(isValidPNG(_imageURI), "Invalid image URI. Must be an https link ending in .png");
+
+        CustomERC20 newToken = new CustomERC20(_name, _symbol, _totalSupply, _decimals, _recipient, _imageURI);
         deployedTokens.push(address(newToken));
-        emit TokenCreated(address(newToken), _name, _symbol, _totalSupply, _decimals, _recipient);
+        emit TokenCreated(address(newToken), _name, _symbol, _totalSupply, _decimals, _recipient, _imageURI);
         return address(newToken);
     }
 
     function getAllTokens() public view returns (address[] memory) {
         return deployedTokens;
+    }
+
+    function isValidPNG(string memory _uri) internal pure returns (bool) {
+        bytes memory uriBytes = bytes(_uri);
+        if (uriBytes.length < 9) return false; // minimum "https://x.png"
+
+        // check if starts with https://
+        if (
+            uriBytes[0] != 'h' ||
+            uriBytes[1] != 't' ||
+            uriBytes[2] != 't' ||
+            uriBytes[3] != 'p' ||
+            uriBytes[4] != 's' ||
+            uriBytes[5] != ':' ||
+            uriBytes[6] != '/' ||
+            uriBytes[7] != '/'
+        ) return false;
+
+        // check if ends with .png
+        uint len = uriBytes.length;
+        return (
+            uriBytes[len - 4] == '.' &&
+            uriBytes[len - 3] == 'p' &&
+            uriBytes[len - 2] == 'n' &&
+            uriBytes[len - 1] == 'g'
+        );
     }
 }
 
@@ -29,6 +66,7 @@ contract CustomERC20 {
     string public name;
     string public symbol;
     uint8 public decimals;
+    string public imageURI;
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
@@ -41,12 +79,14 @@ contract CustomERC20 {
         string memory _symbol,
         uint256 _initialSupply,
         uint8 _decimals,
-        address _recipient
+        address _recipient,
+        string memory _imageURI
     ) {
         require(_decimals <= 18, "Max decimals is 18");
         name = _name;
         symbol = _symbol;
         decimals = _decimals;
+        imageURI = _imageURI;
         totalSupply = _initialSupply * (10 ** uint256(_decimals));
         balanceOf[_recipient] = totalSupply;
         emit Transfer(address(0), _recipient, totalSupply);
